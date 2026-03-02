@@ -26,10 +26,30 @@ app.get("/todos", (req: Request, res: Response) => {
   }
 });
 
+app.get("/todos/:id", (req: Request, res: Response) => {
+  try {
+    if (!fs.existsSync(dataPath))
+      return res
+        .status(500)
+        .json({ success: false, message: "Database file missing" });
+    const { id } = req.params;
+    const todos = getTodos();
+    if (isNaN(Number(id)))
+      return res.status(400).json({ success: false, message: "Bad request" });
+    const existingTodo = todos.find((todo: any) => todo.id === Number(id));
+    if (!existingTodo)
+      return res
+        .status(404)
+        .json({ success: false, message: "Todo not found" });
+    res.status(200).json({ success: true, data: existingTodo });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 app.post("/todos", (req: Request, res: Response) => {
   try {
-    const { title, description } = req.body;
-
+    const { title } = req.body;
     if (!title)
       return res
         .status(400)
@@ -41,15 +61,13 @@ app.post("/todos", (req: Request, res: Response) => {
     const newTodo = {
       id: newId,
       title: title,
-      description: description || "",
       isCompleted: false,
       createdAt: new Date().toISOString(),
       updatedAt: null,
-      deletedAt: null,
     };
 
     todos.push(newTodo);
-    fs.writeFileSync(dataPath, JSON.stringify(todos, null, 2));
+    fs.writeFileSync(dataPath, JSON.stringify(todos));
 
     res.status(201).json({ success: true, data: newTodo });
   } catch (error: any) {
@@ -60,22 +78,25 @@ app.post("/todos", (req: Request, res: Response) => {
 app.put("/todos/:id", (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, description, isCompleted } = req.body;
+    const { title, isCompleted } = req.body;
+    if (!title.trim())
+      return res
+        .status(400)
+        .json({ success: false, message: "Title is required" });
     const todos = getTodos();
-
+    if (isNaN(Number(id)))
+      return res.status(400).json({ success: false, message: "Bad request" });
     const index = todos.findIndex((t: any) => t.id === Number(id));
     if (index === -1)
       return res.status(404).json({ success: false, message: "Not found" });
-
     todos[index] = {
       ...todos[index],
       title: title ?? todos[index].title,
-      description: description ?? todos[index].description,
       isCompleted: isCompleted ?? todos[index].isCompleted,
       updatedAt: new Date().toISOString(),
     };
 
-    fs.writeFileSync(dataPath, JSON.stringify(todos, null, 2));
+    fs.writeFileSync(dataPath, JSON.stringify(todos));
     res.status(200).json({ success: true, data: todos[index] });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -86,6 +107,8 @@ app.delete("/todos/:id", (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const todos = getTodos();
+    if (isNaN(Number(id)))
+      return res.status(400).json({ success: false, message: "Bad request" });
     const newTodos = todos.filter((t: any) => t.id !== Number(id));
 
     if (todos.length === newTodos.length)

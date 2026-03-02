@@ -2,10 +2,8 @@
   {
     "id": 1,
     "title": "First",
-    "description": "first",
     "isCompleted": false,
     "createdAt": "2026-03-01T10:00:00.000Z",
-    "updatedAt": null,
-    "deletedAt": null
+    "updatedAt": null
   }
 ]
