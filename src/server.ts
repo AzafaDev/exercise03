@@ -12,138 +12,90 @@ const dataPath = path.join(__dirname, "db", "todos.json");
 
 app.use(express.json());
 
+const getTodos = () => JSON.parse(fs.readFileSync(dataPath, "utf-8"));
+
 app.get("/todos", (req: Request, res: Response) => {
   try {
     if (!fs.existsSync(dataPath))
       return res
         .status(500)
-        .json({ success: false, message: "internal server error" });
-    const todos = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
-    res.status(200).json({
-      success: true,
-      message: "Got all todos successfully!",
-      data: todos,
-    });
+        .json({ success: false, message: "Database file missing" });
+    res.status(200).json({ success: true, data: getTodos() });
   } catch (error: any) {
-    console.log(error.message);
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-});
-
-app.get("/todos/:id", (req: Request, res: Response) => {
-  try {
-    if (!fs.existsSync(dataPath))
-      return res
-        .status(500)
-        .json({ success: false, message: "internal server error" });
-    const { id } = req.params;
-    const todos = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
-    if (isNaN(Number(id)))
-      return res.status(400).json({ success: false, message: "Bad request" });
-    const foundTodo = todos.find((todo: any) => todo.id === Number(id));
-    if (!foundTodo)
-      return res
-        .status(404)
-        .json({ success: false, message: "Todo not found" });
-    res.status(200).json({
-      success: true,
-      message: "Got todo by id successfully!",
-      data: foundTodo,
-    });
-  } catch (error: any) {
-    console.log(error.message);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
 app.post("/todos", (req: Request, res: Response) => {
   try {
-    if (!fs.existsSync(dataPath))
+    const { title, description } = req.body;
+
+    if (!title)
       return res
-        .status(500)
-        .json({ success: false, message: "internal server error" });
-    const { name } = req.body;
-    if (!name.trim())
-      return res.status(400).json({
-        success: false,
-        message: "name is required!",
-      });
-    const todos = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
+        .status(400)
+        .json({ success: false, message: "Title is required" });
+
+    const todos = getTodos();
     const newId = todos.length === 0 ? 1 : todos[todos.length - 1].id + 1;
-    const newTodo = {id: newId, name}
-    todos.push(newTodo)
-    fs.writeFileSync(dataPath, JSON.stringify(todos));
-    res.status(201).json({
-      success: true,
-      message: "Created todo successfully!",
-      data: todos,
-    });
+
+    const newTodo = {
+      id: newId,
+      title: title,
+      description: description || "",
+      isCompleted: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: null,
+      deletedAt: null,
+    };
+
+    todos.push(newTodo);
+    fs.writeFileSync(dataPath, JSON.stringify(todos, null, 2));
+
+    res.status(201).json({ success: true, data: newTodo });
   } catch (error: any) {
-    console.log(error.message);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
 app.put("/todos/:id", (req: Request, res: Response) => {
   try {
-    if (!fs.existsSync(dataPath))
-      return res
-        .status(500)
-        .json({ success: false, message: "Internal server error" });
     const { id } = req.params;
-    const { name } = req.body;
-    if (!name.trim())
-      return res
-        .status(400)
-        .json({ success: false, message: "name is required!" });
-    const todos = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
-    if (isNaN(Number(id)))
-      return res.status(400).json({ success: false, message: "Bad request" });
-    let updatedTodo = todos.find((todo: any) => todo.id === Number(id));
-    if (!updatedTodo)
-      return res
-        .status(404)
-        .json({ success: false, message: "Todo not found" });
-    updatedTodo.name = name;
-    fs.writeFileSync(dataPath, JSON.stringify(todos));
-    res.status(200).json({
-      success: true,
-      message: "Updated todo successfully!",
-      data: updatedTodo,
-    });
+    const { title, description, isCompleted } = req.body;
+    const todos = getTodos();
+
+    const index = todos.findIndex((t: any) => t.id === Number(id));
+    if (index === -1)
+      return res.status(404).json({ success: false, message: "Not found" });
+
+    todos[index] = {
+      ...todos[index],
+      title: title ?? todos[index].title,
+      description: description ?? todos[index].description,
+      isCompleted: isCompleted ?? todos[index].isCompleted,
+      updatedAt: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(dataPath, JSON.stringify(todos, null, 2));
+    res.status(200).json({ success: true, data: todos[index] });
   } catch (error: any) {
-    console.log(error.message);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
 app.delete("/todos/:id", (req: Request, res: Response) => {
   try {
-    if (!fs.existsSync(dataPath))
-      return res
-        .status(500)
-        .json({ success: false, message: "Internal server error" });
     const { id } = req.params;
-    const todos = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
-    if (isNaN(Number(id)))
-      return res.status(400).json({ success: false, message: "Bad request" });
-    const newTodos = todos.filter((todo: any) => todo.id !== Number(id));
+    const todos = getTodos();
+    const newTodos = todos.filter((t: any) => t.id !== Number(id));
+
     if (todos.length === newTodos.length)
-      return res
-        .status(404)
-        .json({ success: false, message: "Todo not found" });
-    fs.writeFileSync(dataPath, JSON.stringify(newTodos));
-    res.status(200).json({
-      success: true,
-      message: "Deleted todo successfully!",
-      data: newTodos,
-    });
+      return res.status(404).json({ success: false, message: "Not found" });
+
+    fs.writeFileSync(dataPath, JSON.stringify(newTodos, null, 2));
+    res.status(200).json({ success: true, message: "Deleted" });
   } catch (error: any) {
-    console.log(error.message);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-app.listen(PORT, () => {
-  console.log("Server is running on port:", PORT);
-});
+app.listen(PORT, () => console.log("Server ready on port:", PORT));
