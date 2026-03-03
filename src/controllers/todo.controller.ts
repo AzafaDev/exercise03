@@ -1,39 +1,47 @@
 import type { Request, Response } from "express";
-import fs from "fs";
-import path, { dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const dataPath = path.join(__dirname, '..',"db", "todos.json");
-
-interface Todo {
-  id: number;
-  title: string;
-  isCompleted: boolean;
-  createdAt: string;
-  updatedAt: string | null;
-}
-
-const getTodos = (): Todo[] => {
-  try {
-    if (!fs.existsSync(dataPath)) return [];
-    const content = fs.readFileSync(dataPath, "utf-8");
-    return JSON.parse(content) as Todo[];
-  } catch (error) {
-    console.error("Gagal membaca file:", error);
-    return [];
-  }
-};
-
-const saveTodos = (todos: Todo[]) => {
-  fs.writeFileSync(dataPath, JSON.stringify(todos));
-};
+import type { Todo } from "../types/todo.type.js";
+import { getTodos, saveTodos } from "../helpers/todo.helper.js";
 
 export const todoController = {
   get: (req: Request, res: Response) => {
-    const todos = getTodos();
-    res.status(200).json({ success: true, data: todos });
+    const { search, page = 1, limit = 5 } = req.query;
+
+    const currentPage = Number(page);
+    const todosPerPage = Number(limit);
+
+    if (isNaN(currentPage) || isNaN(todosPerPage) || currentPage < 0 || todosPerPage < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Page or Limit must be a number",
+      });
+    }
+
+    let filteredTodos = getTodos();
+
+    if (search && typeof search === "string") {
+      const searchTerm = search.toLowerCase();
+      filteredTodos = filteredTodos.filter((todo) =>
+        todo.title.toLowerCase().includes(searchTerm),
+      );
+    }
+
+    const totalTodos = filteredTodos.length;
+    const totalPages = Math.ceil(totalTodos / todosPerPage);
+    const firstIndex = (currentPage - 1) * todosPerPage;
+    const lastIndex = firstIndex + todosPerPage;
+
+    const currentTodos = filteredTodos.slice(firstIndex, lastIndex);
+
+    res.status(200).json({
+      success: true,
+      data: currentTodos, 
+      meta: {
+        totalTodos,
+        totalPages,
+        currentPage,
+        todosPerPage,
+      },
+    });
   },
 
   getById: (req: Request, res: Response) => {
