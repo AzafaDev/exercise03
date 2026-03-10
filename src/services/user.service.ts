@@ -4,6 +4,7 @@ export const userService = {
   getUsers: async () => {
     const users = await prisma.user.findMany({
       select: {
+        id: true,
         name: true,
         email: true,
       },
@@ -13,10 +14,7 @@ export const userService = {
   getuserById: async (id: string) => {
     const existingUser = await prisma.user.findUnique({
       where: { id },
-      select: {
-        name: true,
-        email: true,
-      },
+      select: { id: true, name: true, email: true },
     });
     if (!existingUser) throw new Error("User not found");
     return existingUser;
@@ -31,14 +29,15 @@ export const userService = {
       where: { id },
     });
     if (!existingUser) throw new Error("User not found");
-    if (!name || !email || !password)
-      throw new Error("All fields are required");
+    const nameFix = name || existingUser.name;
+    const emailFix = email || existingUser.email;
+    const passwordFix = password || existingUser.password;
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
-        name,
-        email,
-        password,
+        name: nameFix,
+        email: emailFix,
+        password: passwordFix,
       },
     });
     return updatedUser;
@@ -50,13 +49,10 @@ export const userService = {
     if (!author) throw new Error("User not found");
     const posts = await prisma.post.findMany({
       where: {
-        author,
+        authorId: author.id,
       },
-      select:{
-        content: true,
-        image: true, 
-      }
+      select: { id: true, content: true, image: true },
     });
-    return posts
+    return posts;
   },
 };

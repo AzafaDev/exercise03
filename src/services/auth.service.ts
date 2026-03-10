@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import bcrypt from "bcrypt";
 
 export const authService = {
   register: async (name: string, email: string, password: string) => {
@@ -6,11 +7,12 @@ export const authService = {
       where: { email },
     });
     if (existingUser) throw new Error("Email already registered");
+    const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await prisma.user.create({
       data: {
         name,
         email,
-        password,
+        password: hashedPassword,
       },
     });
     return newUser;
@@ -20,7 +22,11 @@ export const authService = {
       where: { email },
     });
     if (!existingUser) throw new Error("User not found");
-    if (existingUser.password !== password) throw new Error("Invalid password");
-    return existingUser
+    const isMatchingPassword = await bcrypt.compare(
+      password,
+      existingUser.password,
+    );
+    if (!isMatchingPassword) throw new Error("Invalid password");
+    return existingUser;
   },
 };
